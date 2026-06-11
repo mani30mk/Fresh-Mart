@@ -6,6 +6,7 @@
 const WA_NUMBER = FreshMartStore.getWhatsAppNumber();
 let cart = [];
 let activeCategory = 'all';
+let customerLocation = { text: '', mapsLink: '' };
 
 // ── Initialize ──────────────────────────────────────────────
 
@@ -339,23 +340,31 @@ document.getElementById('paymentType').addEventListener('change', validateOrder)
 // ── WhatsApp Message Composition ────────────────────────────
 
 function generateWhatsAppLink(location, payment) {
-  const itemLines = cart.map(item =>
-    `${item.emoji} ${item.name} × ${item.qty} ${item.unit} = ${FreshMartStore.formatPrice(item.price * item.qty)}`
-  ).join('\n');
+  const lines = [];
+  lines.push('*New FreshMart Order*');
+  lines.push('');
+  lines.push('*Items:*');
+
+  cart.forEach(item => {
+    const subtotal = FreshMartStore.formatPrice(item.price * item.qty);
+    lines.push(`${item.emoji} ${item.name} x ${item.qty} ${item.unit} = ${subtotal}`);
+  });
 
   const total = getCartTotal();
+  lines.push('');
+  lines.push(`*Total: ${FreshMartStore.formatPrice(total)}*`);
+  lines.push(`*Location:* ${location}`);
 
-  const message = `🛒 *New FreshMart Order*
+  // Add Google Maps link if available
+  if (customerLocation.mapsLink) {
+    lines.push(`*Map:* ${customerLocation.mapsLink}`);
+  }
 
-📦 *Items:*
-${itemLines}
+  lines.push(`*Payment:* ${payment}`);
+  lines.push('');
+  lines.push('_Ordered via FreshMart Website_');
 
-💰 *Total: ${FreshMartStore.formatPrice(total)}*
-📍 *Location:* ${location}
-💳 *Payment:* ${payment}
-
-_Ordered via FreshMart Website_`;
-
+  const message = lines.join('\n');
   return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
@@ -402,6 +411,82 @@ function placeOrder(event) {
   }, 1000);
 }
 
+// ── Geolocation — Live Location ─────────────────────────────
+
+function getMyLocation() {
+  const btn = document.getElementById('liveLocationBtn');
+  const status = document.getElementById('locationStatus');
+  const input = document.getElementById('deliveryLocation');
+
+  if (!navigator.geolocation) {
+    showToast('Geolocation is not supported by your browser', 'error');
+    return;
+  }
+
+  // Show loading state
+  btn.classList.add('loading');
+  btn.textContent = 'Locating...';
+  status.textContent = 'Getting your location...';
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude.toFixed(6);
+      const lng = position.coords.longitude.toFixed(6);
+      const mapsLink = `https://maps.google.com/maps?q=${lat},${lng}`;
+
+      // Store for WhatsApp message
+      customerLocation.mapsLink = mapsLink;
+      customerLocation.text = `Lat: ${lat}, Lng: ${lng}`;
+
+      // Update input with coordinates
+      input.value = `GPS: ${lat}, ${lng}`;
+
+      // Update status with clickable maps link
+      status.innerHTML = `Location found! <a href="${mapsLink}" target="_blank">View on Google Maps</a>`;
+
+      // Update button state
+      btn.classList.remove('loading');
+      btn.classList.add('success');
+      btn.textContent = 'Location Set';
+
+      showToast('Location captured successfully!', 'success');
+      validateOrder();
+
+      // Reset button after 3 seconds
+      setTimeout(() => {
+        btn.classList.remove('success');
+        btn.textContent = '📍 Use My Location';
+      }, 3000);
+    },
+    (error) => {
+      btn.classList.remove('loading');
+      btn.textContent = '📍 Use My Location';
+
+      let msg = 'Could not get your location. ';
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          msg += 'Please allow location access in your browser.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          msg += 'Location info unavailable.';
+          break;
+        case error.TIMEOUT:
+          msg += 'Request timed out. Try again.';
+          break;
+        default:
+          msg += 'Please type your address manually.';
+      }
+      status.textContent = msg;
+      showToast(msg, 'error');
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+}
+
 // ── Toast Notifications ─────────────────────────────────────
 
 function showToast(message, type = 'info') {
@@ -409,7 +494,7 @@ function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
 
-  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const icons = { success: '✓', error: '✗', info: 'i' };
   toast.innerHTML = `<span>${icons[type] || ''}</span> ${message}`;
 
   container.appendChild(toast);

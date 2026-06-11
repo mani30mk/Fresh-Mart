@@ -113,7 +113,13 @@
   </div>
   <div class="cart-footer" id="cartFooter">
     <div class="cart-form">
-      <input type="text" class="form-input" id="deliveryLocation" placeholder="📍 Enter delivery location (e.g., 12, Rose Nagar, Thanjavur)">
+      <div class="location-group">
+        <input type="text" class="form-input" id="deliveryLocation" placeholder="📍 Enter delivery address...">
+        <button type="button" class="location-btn" id="liveLocationBtn" onclick="getMyLocation()" title="Use my live location">
+          📍 Use My Location
+        </button>
+      </div>
+      <div class="location-status" id="locationStatus"></div>
       <select class="form-select" id="paymentType">
         <option value="" disabled selected>💳 Select payment method</option>
         <option value="COD">💵 Cash on Delivery</option>

@@ -543,6 +543,40 @@ img { max-width: 100%; display: block; }
 
 .cart-form { display: flex; flex-direction: column; gap: var(--sp-12); margin-bottom: var(--sp-16); }
 
+/* Location Group - input + GPS button */
+.location-group {
+  display: flex; gap: var(--sp-8);
+}
+.location-group .form-input { flex: 1; }
+
+.location-btn {
+  white-space: nowrap;
+  padding: var(--sp-8) var(--sp-12); border-radius: var(--r-md);
+  background: var(--leaf); color: var(--white);
+  font-size: 0.78rem; font-weight: 600;
+  transition: all var(--dur) var(--ease);
+  box-shadow: 0 2px 8px rgba(45,106,79,0.25);
+  flex-shrink: 0;
+}
+.location-btn:hover { background: var(--leaf-dark); transform: translateY(-1px); }
+.location-btn.loading {
+  opacity: 0.7; pointer-events: none;
+  animation: pulse 1s infinite;
+}
+.location-btn.success {
+  background: var(--wa);
+  box-shadow: 0 2px 8px rgba(37,211,102,0.25);
+}
+
+.location-status {
+  font-size: 0.75rem; color: var(--light);
+  min-height: 0; transition: all var(--dur);
+}
+.location-status:not(:empty) {
+  min-height: 18px; margin-top: -4px;
+}
+.location-status a { color: var(--leaf); text-decoration: underline; }
+
 .form-input {
   width: 100%; padding: var(--sp-12) var(--sp-16);
   border: 2px solid var(--border); border-radius: var(--r-md);

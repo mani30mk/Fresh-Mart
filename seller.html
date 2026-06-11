@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshMart — Seller Dashboard</title>
+  <meta name="description" content="FreshMart Seller Dashboard — Manage products, prices, and orders.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="seller-page">
+
+<!-- ═══ PIN LOGIN OVERLAY ═══ -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-card">
+    <div class="pin-icon">🔐</div>
+    <h2>Seller Dashboard</h2>
+    <p>Enter your 4-digit PIN to continue</p>
+    <div class="pin-inputs" id="pinInputs">
+      <input type="password" maxlength="1" class="pin-digit" data-index="0" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input type="password" maxlength="1" class="pin-digit" data-index="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input type="password" maxlength="1" class="pin-digit" data-index="2" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input type="password" maxlength="1" class="pin-digit" data-index="3" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+    </div>
+    <button class="pin-submit" id="pinSubmitBtn" onclick="handlePinLogin()">Unlock Dashboard</button>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div id="dashboard" style="display:none;">
+
+  <!-- Navigation -->
+  <nav class="fm-nav fm-nav--seller" id="sellerNav">
+    <div class="nav-logo">
+      🥬 Fresh<span>Mart</span>
+      <span class="nav-badge nav-badge--seller">Seller</span>
+    </div>
+    <div class="nav-actions">
+      <a href="index.html" class="nav-link" target="_blank">🏪 View Store</a>
+      <button class="nav-link" onclick="handleLogout()">🚪 Logout</button>
+    </div>
+  </nav>
+
+  <div class="dashboard">
+
+    <!-- ═══ STATS GRID ═══ -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-value" id="statProducts">0</div>
+        <div class="stat-label">Total Products</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" id="statInStock">0</div>
+        <div class="stat-label">In Stock</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🛒</div>
+        <div class="stat-value" id="statOrders">0</div>
+        <div class="stat-label">Total Orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" id="statPending">0</div>
+        <div class="stat-label">Pending Orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value" id="statRevenue">₹0</div>
+        <div class="stat-label">Total Revenue</div>
+      </div>
+    </div>
+
+    <!-- ═══ TABS ═══ -->
+    <div class="dash-tabs">
+      <button class="dash-tab active" data-tab="products" onclick="switchTab('products', this)">📦 Products</button>
+      <button class="dash-tab" data-tab="orders" onclick="switchTab('orders', this)">🛒 Orders</button>
+    </div>
+
+    <!-- ═══ PRODUCTS TAB ═══ -->
+    <div class="tab-content active" id="productsTab">
+      <div class="tab-toolbar">
+        <h2>Product Management</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn--primary btn--sm" onclick="openProductModal()">+ Add Product</button>
+        </div>
+      </div>
+      <div class="products-table" id="productsTable">
+        <div class="pt-header">
+          <div></div>
+          <div>Product</div>
+          <div>Price</div>
+          <div>Unit</div>
+          <div>Status</div>
+          <div>Actions</div>
+        </div>
+        <div id="productsTableBody"></div>
+      </div>
+    </div>
+
+    <!-- ═══ ORDERS TAB ═══ -->
+    <div class="tab-content" id="ordersTab">
+      <div class="tab-toolbar">
+        <h2>Order History</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn--outline btn--sm" onclick="FreshMartStore.exportOrders()" style="color:var(--lime);border-color:var(--s-border);">📥 Export CSV</button>
+        </div>
+      </div>
+      <div id="ordersList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PRODUCT MODAL ═══ -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add New Product</h3>
+    <form class="modal-form" id="productForm" onsubmit="handleProductSubmit(event)">
+      <div class="form-group">
+        <label class="form-label">Emoji</label>
+        <input type="text" class="form-input--dark" id="prodEmoji" placeholder="e.g., 🍎 🥦 🌿" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Product Name</label>
+        <input type="text" class="form-input--dark" id="prodName" placeholder="e.g., Apple, Broccoli" required>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label class="form-label">Price (₹)</label>
+          <input type="number" class="form-input--dark" id="prodPrice" placeholder="e.g., 80" min="1" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit</label>
+          <select class="form-select--dark" id="prodUnit" required>
+            <option value="kg">per kg</option>
+            <option value="piece">per piece</option>
+            <option value="dozen">per dozen</option>
+            <option value="bunch">per bunch</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select--dark" id="prodCategory" required>
+          <option value="fruits">🍎 Fruits</option>
+          <option value="vegetables">🥦 Vegetables</option>
+          <option value="leafy">🌿 Leafy Greens</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost" onclick="closeProductModal()" style="color:var(--s-text-muted);">Cancel</button>
+        <button type="submit" class="btn btn--primary" id="modalSubmitBtn">Add Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ TOAST CONTAINER ═══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/store.js"></script>
+<script src="js/seller.js"></script>
+</body>
+</html>

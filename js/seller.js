@@ -354,6 +354,7 @@ function renderOrders() {
         <div class="order-meta">
           <span>💰 ${FreshMartStore.formatPrice(order.total)}</span>
           <span>📍 ${order.location}</span>
+          ${order.mapsLink ? `<a href="${order.mapsLink}" target="_blank" class="btn btn--sm btn--outline" style="border-color:var(--s-border); color:var(--lime); padding: 4px 8px; font-size: 0.75rem;">🗺️ View Map</a>` : ''}
           <span>💳 ${order.payment}</span>
         </div>
         <div class="order-actions">

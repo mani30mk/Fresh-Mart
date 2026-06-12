@@ -13,7 +13,6 @@ let customerLocation = { text: '', mapsLink: '' };
 document.addEventListener('DOMContentLoaded', () => {
   renderProducts();
   generateQRCode();
-  setupHeroWhatsApp();
   setupNavScroll();
   updateCartUI();
 });
@@ -128,13 +127,6 @@ function downloadQRCode(url) {
   link.download = 'freshmart-qr-code.png';
   link.href = canvas.toDataURL('image/png');
   link.click();
-}
-
-// ── Hero WhatsApp Button ────────────────────────────────────
-
-function setupHeroWhatsApp() {
-  const btn = document.getElementById('heroWhatsappBtn');
-  btn.href = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Hi! I want to order from FreshMart 🥬')}`;
 }
 
 // ── Product Rendering ───────────────────────────────────────
@@ -321,52 +313,18 @@ function toggleCart() {
 function validateOrder() {
   const location = document.getElementById('deliveryLocation').value.trim();
   const payment = document.getElementById('paymentType').value;
-  const btn = document.getElementById('whatsappOrderBtn');
+  const btn = document.getElementById('placeOrderBtn');
   const isValid = cart.length > 0 && location.length > 0 && payment.length > 0;
 
-  btn.classList.toggle('disabled', !isValid);
-
-  if (isValid) {
-    btn.href = generateWhatsAppLink(location, payment);
-  } else {
-    btn.removeAttribute('href');
+  if (btn) {
+    btn.classList.toggle('disabled', !isValid);
+    btn.disabled = !isValid;
   }
 }
 
 // Add input listeners for validation
 document.getElementById('deliveryLocation').addEventListener('input', validateOrder);
 document.getElementById('paymentType').addEventListener('change', validateOrder);
-
-// ── WhatsApp Message Composition ────────────────────────────
-
-function generateWhatsAppLink(location, payment) {
-  const lines = [];
-  lines.push('*New FreshMart Order*');
-  lines.push('');
-  lines.push('*Items:*');
-
-  cart.forEach(item => {
-    const subtotal = FreshMartStore.formatPrice(item.price * item.qty);
-    lines.push(`${item.emoji} ${item.name} x ${item.qty} ${item.unit} = ${subtotal}`);
-  });
-
-  const total = getCartTotal();
-  lines.push('');
-  lines.push(`*Total: ${FreshMartStore.formatPrice(total)}*`);
-  lines.push(`*Location:* ${location}`);
-
-  // Add Google Maps link if available
-  if (customerLocation.mapsLink) {
-    lines.push(`*Map:* ${customerLocation.mapsLink}`);
-  }
-
-  lines.push(`*Payment:* ${payment}`);
-  lines.push('');
-  lines.push('_Ordered via FreshMart Website_');
-
-  const message = lines.join('\n');
-  return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`;
-}
 
 // ── Place Order ─────────────────────────────────────────────
 
@@ -394,21 +352,21 @@ function placeOrder(event) {
     })),
     total: getCartTotal(),
     location: location,
+    mapsLink: customerLocation.mapsLink || '',
     payment: payment
   };
 
   FreshMartStore.addOrder(order);
 
-  // Clear cart after a delay (allow WhatsApp to open)
-  setTimeout(() => {
-    cart = [];
-    document.getElementById('deliveryLocation').value = '';
-    document.getElementById('paymentType').selectedIndex = 0;
-    updateCartUI();
-    renderProducts();
-    showToast('🎉 Order sent! Check WhatsApp', 'success');
-    toggleCart();
-  }, 1000);
+  cart = [];
+  document.getElementById('deliveryLocation').value = '';
+  document.getElementById('paymentType').selectedIndex = 0;
+  customerLocation = { text: '', mapsLink: '' };
+  
+  updateCartUI();
+  renderProducts();
+  showToast('🎉 Order placed successfully!', 'success');
+  toggleCart();
 }
 
 // ── Geolocation — Live Location ─────────────────────────────

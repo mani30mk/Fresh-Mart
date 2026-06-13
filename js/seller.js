@@ -201,7 +201,7 @@ function renderProducts() {
 
   body.innerHTML = products.map(p => `
     <div class="pt-row" id="row-${p.id}">
-      <div class="pt-emoji">${p.emoji}</div>
+      <div class="pt-emoji">${p.image ? `<img src="${p.image}" style="width:32px; height:32px; object-fit:cover; border-radius:4px;">` : p.emoji}</div>
       <div class="pt-name">${p.name}</div>
       <div class="pt-price">
         <input type="number" class="pt-price-input" value="${p.price}" min="1"
@@ -264,7 +264,7 @@ function openProductModal(productId = null) {
 
     title.textContent = 'Edit Product';
     submitBtn.textContent = 'Save Changes';
-    document.getElementById('prodEmoji').value = product.emoji;
+    document.getElementById('existingImageUrl').value = product.image || '';
     document.getElementById('prodName').value = product.name;
     document.getElementById('prodPrice').value = product.price;
     document.getElementById('prodUnit').value = product.unit;
@@ -290,13 +290,14 @@ function closeProductModal() {
 async function handleProductSubmit(event) {
   event.preventDefault();
 
-  const emoji = document.getElementById('prodEmoji').value.trim();
   const name = document.getElementById('prodName').value.trim();
   const price = parseInt(document.getElementById('prodPrice').value);
   const unit = document.getElementById('prodUnit').value;
   const category = document.getElementById('prodCategory').value;
+  const imageInput = document.getElementById('prodImage');
+  const existingImageUrl = document.getElementById('existingImageUrl').value;
 
-  if (!emoji || !name || !price || price < 1) {
+  if (!name || !price || price < 1) {
     showToast('Please fill in all fields correctly', 'error');
     return;
   }
@@ -305,12 +306,29 @@ async function handleProductSubmit(event) {
   btn.disabled = true;
 
   try {
+    let imageUrl = existingImageUrl;
+    if (imageInput.files.length > 0) {
+      btn.textContent = 'Uploading Image...';
+      const file = imageInput.files[0];
+      const storageRef = firebase.storage().ref();
+      const fileRef = storageRef.child(`products/${Date.now()}_${file.name}`);
+      await fileRef.put(file);
+      imageUrl = await fileRef.getDownloadURL();
+    }
+
+    if (!imageUrl && !editingProductId) {
+      showToast('Please select a product image', 'error');
+      btn.disabled = false;
+      return;
+    }
+
+    btn.textContent = 'Saving...';
     if (editingProductId) {
-      await FreshMartStore.updateProduct(editingProductId, { emoji, name, price, unit, category });
-      showToast(`${emoji} ${name} updated!`, 'success');
+      await FreshMartStore.updateProduct(editingProductId, { image: imageUrl, name, price, unit, category });
+      showToast(`${name} updated!`, 'success');
     } else {
-      await FreshMartStore.addProduct({ emoji, name, price, unit, category });
-      showToast(`${emoji} ${name} added!`, 'success');
+      await FreshMartStore.addProduct({ image: imageUrl, name, price, unit, category, emoji: "📦" });
+      showToast(`${name} added!`, 'success');
     }
     closeProductModal();
   } catch (e) {

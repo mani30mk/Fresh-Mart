@@ -303,7 +303,7 @@ function renderProducts() {
     return `
       <div class="product-card ${!product.inStock ? 'out-of-stock' : ''}" id="product-${product.id}">
         ${inCart ? '<div class="in-cart-badge">✓ In Cart</div>' : ''}
-        <span class="product-emoji">${product.emoji}</span>
+        ${product.image ? `<img src="${product.image}" class="product-image" alt="${product.name}">` : `<span class="product-emoji">${product.emoji}</span>`}
         <div class="product-name">${product.name}</div>
         <div class="product-price">${FreshMartStore.formatPrice(product.price)}</div>
         <div class="product-unit">per ${product.unit}</div>
@@ -360,6 +360,7 @@ function addToCart(productId) {
     cart.push({
       id: product.id,
       emoji: product.emoji,
+      image: product.image,
       name: product.name,
       price: product.price,
       unit: product.unit,
@@ -422,7 +423,7 @@ function updateCartUI() {
 
   container.innerHTML = cart.map((item, i) => `
     <div class="cart-item">
-      <span class="cart-item-emoji">${item.emoji}</span>
+      ${item.image ? `<img src="${item.image}" class="cart-item-image" alt="${item.name}">` : `<span class="cart-item-emoji">${item.emoji}</span>`}
       <div class="cart-item-info">
         <div class="cart-item-name">${item.name}</div>
         <div class="cart-item-meta">${FreshMartStore.formatPrice(item.price)} / ${item.unit}</div>

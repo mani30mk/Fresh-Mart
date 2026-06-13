@@ -118,8 +118,9 @@
     <h3 id="modalTitle">Add New Product</h3>
     <form class="modal-form" id="productForm" onsubmit="handleProductSubmit(event)">
       <div class="form-group">
-        <label class="form-label">Emoji</label>
-        <input type="text" class="form-input--dark" id="prodEmoji" placeholder="e.g., 🍎 🥦 🌿" required>
+        <label class="form-label">Product Image</label>
+        <input type="file" class="form-input--dark" id="prodImage" accept="image/*" style="padding: 10px;">
+        <input type="hidden" id="existingImageUrl">
       </div>
       <div class="form-group">
         <label class="form-label">Product Name</label>
@@ -161,7 +162,9 @@
 
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
 <script src="js/store.js" defer></script>
 <script src="js/seller.js" defer></script>

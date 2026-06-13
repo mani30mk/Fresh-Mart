@@ -314,14 +314,11 @@ async function handleProductSubmit(event) {
       
       btn.textContent = 'Uploading...';
       const storageRef = firebase.storage().ref();
-      const fileRef = storageRef.child(`products/${Date.now()}_${file.name.replace(/\.[^/.]+$/, "")}.jpg`);
+      const fileName = `products/${Date.now()}_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
+      const fileRef = storageRef.child(fileName);
       
-      const uploadTask = fileRef.put(compressedBlob);
-      
-      // Add a 10-second timeout to catch permission/network hangs
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out (check Storage Rules)")), 10000));
-      await Promise.race([uploadTask, timeout]);
-
+      const metadata = { contentType: 'image/jpeg' };
+      await fileRef.put(compressedBlob, metadata);
       imageUrl = await fileRef.getDownloadURL();
     }
 
@@ -333,7 +330,9 @@ async function handleProductSubmit(event) {
 
     btn.textContent = 'Saving...';
     if (editingProductId) {
-      await FreshMartStore.updateProduct(editingProductId, { image: imageUrl, name, price, unit, category });
+      const updates = { name, price, unit, category };
+      if (imageUrl) updates.image = imageUrl;
+      await FreshMartStore.updateProduct(editingProductId, updates);
       showToast(`${name} updated!`, 'success');
     } else {
       await FreshMartStore.addProduct({ image: imageUrl, name, price, unit, category, emoji: "📦" });
@@ -341,9 +340,14 @@ async function handleProductSubmit(event) {
     }
     closeProductModal();
   } catch (e) {
-    showToast('Error saving product', 'error');
+    console.error('Product save error:', e);
+    const msg = e.code === 'storage/unauthorized' 
+      ? 'Firebase Storage permission denied! Update Storage Rules in Firebase Console.'
+      : e.message || 'Error saving product';
+    showToast(msg, 'error');
   } finally {
     btn.disabled = false;
+    btn.textContent = editingProductId ? 'Save Changes' : 'Add Product';
   }
 }
 

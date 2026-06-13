@@ -5,14 +5,27 @@
 
 const WA_NUMBER = FreshMartStore.getWhatsAppNumber();
 let cart = [];
+// ── Initialization ─────────────────────────────────────────────
+
+const auth = firebase.auth();
+let allProducts = [];
 let activeCategory = 'all';
 let customerLocation = { text: '', mapsLink: '' };
+let isPointsApplied = false;
+let pendingOrder = null;
+
+let currentUser = null;
+let authPhoneTemp = '';
+let authNameTemp = '';
 
 // ── Initialize ──────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderProducts();
-  generateQRCode();
+  checkAuth();
+  FreshMartStore.listenToProducts((products) => {
+    allProducts = products;
+    renderProducts();
+  });
   setupNavScroll();
   updateCartUI();
 });
@@ -26,114 +39,249 @@ function setupNavScroll() {
   });
 }
 
-// ── QR Code Generation ──────────────────────────────────────
+// ── Authentication ──────────────────────────────────────────
 
-function generateQRCode() {
-  const container = document.getElementById('qrCodeContainer');
-  // Use deployed URL if available, otherwise show current URL
-  let siteUrl = window.location.href.split('?')[0].split('#')[0];
-
-  // If running from file://, use a placeholder message
-  const isLocal = siteUrl.startsWith('file://');
-  if (isLocal) {
-    // Check if a custom URL was saved by seller
-    const customUrl = localStorage.getItem('freshmart_site_url');
-    if (customUrl) {
-      siteUrl = customUrl;
+async function checkAuth() {
+  const sessionUser = localStorage.getItem('freshmart_customer_auth');
+  if (sessionUser) {
+    currentUser = JSON.parse(sessionUser);
+    updateAuthUI(); // Show immediate UI
+    
+    // Fetch latest points in background
+    const c = await FreshMartStore.getCustomerByPhone(currentUser.phone);
+    if (c) {
+      currentUser.points = c.points || 0;
+      localStorage.setItem('freshmart_customer_auth', JSON.stringify(currentUser));
+      updateAuthUI(); // Update UI with latest points
     }
-  }
-
-  try {
-    const qr = qrcode(0, 'M');
-    qr.addData(siteUrl);
-    qr.make();
-
-    container.innerHTML = qr.createSvgTag({
-      cellSize: 4,
-      margin: 4,
-      scalable: true
-    });
-
-    // Style the SVG
-    const svg = container.querySelector('svg');
-    if (svg) {
-      svg.style.width = '180px';
-      svg.style.height = '180px';
-      svg.style.borderRadius = '8px';
-    }
-
-    // Update download button
-    const downloadBtn = document.getElementById('downloadQRBtn');
-    if (downloadBtn) {
-      downloadBtn.onclick = () => downloadQRCode(siteUrl);
-    }
-
-    // Update URL display
-    const urlDisplay = document.getElementById('qrUrlDisplay');
-    if (urlDisplay) {
-      if (isLocal && !localStorage.getItem('freshmart_site_url')) {
-        urlDisplay.innerHTML = '⚠️ Deploy to Vercel first for a shareable QR';
-      } else {
-        urlDisplay.textContent = siteUrl;
-      }
-    }
-  } catch (e) {
-    container.innerHTML = `<div style="width:180px;height:180px;display:grid;place-items:center;background:var(--leaf);border-radius:16px;color:white;font-size:3rem;">📱</div>`;
+  } else {
+    updateAuthUI();
   }
 }
 
-function downloadQRCode(url) {
-  // Create a high-res QR code for printing
-  const qr = qrcode(0, 'H'); // High error correction for print
-  qr.addData(url);
-  qr.make();
+function updateAuthUI() {
+  const authNavArea = document.getElementById('authNavArea');
+  if (!authNavArea) return;
 
-  // Create canvas for download
-  const canvas = document.createElement('canvas');
-  const size = 800;
-  const cellSize = Math.floor(size / (qr.getModuleCount() + 8));
-  const margin = Math.floor((size - cellSize * qr.getModuleCount()) / 2);
-  canvas.width = size;
-  canvas.height = size + 120; // Extra space for text
+  if (currentUser) {
+    const pts = currentUser.points || 0;
+    authNavArea.innerHTML = `
+      <button class="nav-link" onclick="openProfileModal()" style="padding: 4px 6px; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:4px; max-width: 140px;">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 70px;" title="${currentUser.name}">👤 ${currentUser.name.split(' ')[0]}</span>
+        <span style="background:var(--lime); color:var(--leaf-dark); padding:2px 4px; border-radius:10px; font-size:0.7rem; font-weight:800; box-shadow:0 2px 4px rgba(0,0,0,0.1); flex-shrink:0;">🌟 ${pts}</span>
+      </button>
+      <button class="nav-link" onclick="handleLogout()" style="padding: 4px 6px; font-size:0.75rem;" title="Logout">Logout</button>
+    `;
+  } else {
+    authNavArea.innerHTML = `
+      <button class="nav-link" onclick="openAuthModal()">Login</button>
+    `;
+  }
+}
 
-  const ctx = canvas.getContext('2d');
+function handleLogout() {
+  currentUser = null;
+  localStorage.removeItem('freshmart_customer_auth');
+  updateAuthUI();
+  showToast('Logged out successfully', 'info');
+}
 
-  // White background
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function openAuthModal() {
+  document.getElementById('authPhone').value = '';
+  document.getElementById('authName').value = '';
+  document.getElementById('authLoginPassword').value = '';
+  document.getElementById('authSetPassword').value = '';
+  
+  document.getElementById('authPhoneStep').style.display = 'block';
+  document.getElementById('authNameStep').style.display = 'none';
+  document.getElementById('authLoginPasswordStep').style.display = 'none';
+  document.getElementById('authSetPasswordStep').style.display = 'none';
+  
+  document.getElementById('authModalTitle').textContent = 'Welcome to FreshMart';
+  document.getElementById('authModalDesc').textContent = 'Enter your phone number to continue';
+  
+  document.getElementById('authModal').classList.add('open');
+}
 
-  // Draw QR modules
-  const moduleCount = qr.getModuleCount();
-  for (let row = 0; row < moduleCount; row++) {
-    for (let col = 0; col < moduleCount; col++) {
-      if (qr.isDark(row, col)) {
-        ctx.fillStyle = '#2D6A4F';
-        ctx.fillRect(margin + col * cellSize, margin + row * cellSize, cellSize, cellSize);
-      }
-    }
+function closeAuthModal() {
+  document.getElementById('authModal').classList.remove('open');
+}
+
+// ── Profile Modal ───────────────────────────────────────────
+
+async function openProfileModal() {
+  if (!currentUser) return;
+  // Refresh customer points from DB
+  const c = await FreshMartStore.getCustomerByPhone(currentUser.phone);
+  if (c) {
+    currentUser.points = c.points || 0;
+    localStorage.setItem('freshmart_customer_auth', JSON.stringify(currentUser));
+  }
+  
+  document.getElementById('profilePointsBalance').textContent = currentUser.points || 0;
+  document.getElementById('profileModal').classList.add('open');
+  
+  const ordersList = document.getElementById('profileOrdersList');
+  ordersList.innerHTML = '<div style="text-align:center; padding: 24px;">Loading...</div>';
+  
+  const orders = await FreshMartStore.getCustomerOrders(currentUser.phone);
+  
+  if (orders.length === 0) {
+    ordersList.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--light);">No orders yet</div>';
+  } else {
+    ordersList.innerHTML = orders.map(o => {
+      const pEarned = o.pointsAwarded ? o.pointsAwarded : 0;
+      return `
+        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+            <span style="font-size:0.8rem; color:var(--light);">${FreshMartStore.formatDate(o.date)}</span>
+            <span style="font-size:0.8rem; font-weight:600;" class="order-status ${o.status}">${o.status}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+            <div>
+              <div style="font-weight:700; font-size:1rem;">${FreshMartStore.formatPrice(o.total)}</div>
+              ${o.discount ? `<div style="font-size:0.75rem; color:var(--wa);">Saved ₹${o.discount} with points</div>` : ''}
+            </div>
+            ${pEarned > 0 ? `<div style="font-size:0.8rem; font-weight:600; color:var(--wa);">+${pEarned} 🌟</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+function closeProfileModal() {
+  document.getElementById('profileModal').classList.remove('open');
+}
+
+async function handleAuthPhone() {
+  const phone = document.getElementById('authPhone').value.trim();
+  
+  if (phone === 'admin888') {
+    window.location.href = 'seller.html';
+    return;
   }
 
-  // Add text below QR
-  ctx.fillStyle = '#1A1A1A';
-  ctx.font = 'bold 32px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('🥬 FreshMart', canvas.width / 2, size + 50);
-  ctx.font = '20px Arial';
-  ctx.fillStyle = '#555';
-  ctx.fillText('Scan to order fresh produce', canvas.width / 2, size + 85);
+  if (phone.length !== 10 || isNaN(phone)) {
+    showToast('Please enter a valid 10-digit phone number', 'error');
+    return;
+  }
+  
+  const btn = document.querySelector('#authPhoneStep button');
+  const originalText = btn.textContent;
+  btn.textContent = 'Checking...';
+  btn.disabled = true;
 
-  // Download
-  const link = document.createElement('a');
-  link.download = 'freshmart-qr-code.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  try {
+    authPhoneTemp = phone;
+    const existingCustomer = await FreshMartStore.getCustomerByPhone(phone);
+    
+    if (existingCustomer) {
+      document.getElementById('authPhoneStep').style.display = 'none';
+      document.getElementById('authLoginPasswordStep').style.display = 'block';
+      document.getElementById('authModalTitle').textContent = 'Welcome Back';
+      document.getElementById('authModalDesc').textContent = 'Enter your password to login';
+    } else {
+      document.getElementById('authPhoneStep').style.display = 'none';
+      document.getElementById('authNameStep').style.display = 'block';
+      document.getElementById('authModalTitle').textContent = 'Create Account';
+      document.getElementById('authModalDesc').textContent = 'Please tell us your name';
+    }
+  } catch (error) {
+    console.error("Firestore Error:", error);
+    alert("Database connection failed: " + error.message + "\n\n(If it says 'Missing or insufficient permissions', your Firestore Database Rules need to be updated to Test Mode!)");
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function handleLoginPassword() {
+  const pwd = document.getElementById('authLoginPassword').value;
+  if (!pwd) return showToast('Please enter password', 'error');
+
+  const btn = document.getElementById('loginBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Logging in...';
+  btn.disabled = true;
+
+  try {
+    const dummyEmail = authPhoneTemp + '@freshmart.local';
+    await auth.signInWithEmailAndPassword(dummyEmail, pwd);
+    
+    const customer = await FreshMartStore.getCustomerByPhone(authPhoneTemp);
+    if (customer) {
+      currentUser = customer;
+      localStorage.setItem('freshmart_customer_auth', JSON.stringify(customer));
+      updateAuthUI();
+      closeAuthModal();
+      showToast(`Welcome back, ${customer.name}!`, 'success');
+      if (document.getElementById('cartPanel').classList.contains('open')) {
+        validateOrder();
+      }
+    } else {
+      showToast('Error: Customer data not found', 'error');
+    }
+  } catch (error) {
+    console.error(error);
+    showToast('Incorrect password or login failed', 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function handleAuthName() {
+  const name = document.getElementById('authName').value.trim();
+  if (!name) {
+    showToast('Please enter your name', 'error');
+    return;
+  }
+  
+  authNameTemp = name;
+  document.getElementById('authNameStep').style.display = 'none';
+  document.getElementById('authSetPasswordStep').style.display = 'block';
+  document.getElementById('authModalTitle').textContent = 'Secure Account';
+  document.getElementById('authModalDesc').textContent = 'Create a password for your account';
+}
+
+async function handleSetPassword() {
+  const pwd = document.getElementById('authSetPassword').value;
+  if (pwd.length < 6) return showToast('Password must be at least 6 characters', 'error');
+
+  const btn = document.getElementById('createAccountBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Creating Account...';
+  btn.disabled = true;
+
+  try {
+    const dummyEmail = authPhoneTemp + '@freshmart.local';
+    await auth.createUserWithEmailAndPassword(dummyEmail, pwd);
+    
+    // Store empty password in Firestore, Firebase Auth handles security
+    const customer = await FreshMartStore.addCustomer(authNameTemp, authPhoneTemp, "");
+    currentUser = customer;
+    localStorage.setItem('freshmart_customer_auth', JSON.stringify(customer));
+    updateAuthUI();
+    closeAuthModal();
+    showToast('Account created successfully!', 'success');
+    if (document.getElementById('cartPanel').classList.contains('open')) {
+      validateOrder();
+    }
+  } catch (error) {
+    console.error(error);
+    showToast('Error creating account: ' + error.message, 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 // ── Product Rendering ───────────────────────────────────────
 
 function renderProducts() {
   const grid = document.getElementById('productGrid');
-  const products = FreshMartStore.getProducts();
+  const products = allProducts;
 
   const filtered = activeCategory === 'all'
     ? products
@@ -162,12 +310,12 @@ function renderProducts() {
         ${product.inStock ? `
           <div class="product-actions">
             <div class="qty-control">
-              <button class="qty-btn" onclick="event.stopPropagation(); changeProductQty(${product.id}, -1)">−</button>
+              <button class="qty-btn" onclick="event.stopPropagation(); changeProductQty('${product.id}', -1)">−</button>
               <div class="qty-display" id="qty-${product.id}">${cartQty}</div>
-              <button class="qty-btn" onclick="event.stopPropagation(); changeProductQty(${product.id}, 1)">+</button>
+              <button class="qty-btn" onclick="event.stopPropagation(); changeProductQty('${product.id}', 1)">+</button>
             </div>
           </div>
-          <button class="add-to-cart-btn ${inCart ? 'in-cart' : ''}" onclick="addToCart(${product.id})">
+          <button class="add-to-cart-btn ${inCart ? 'in-cart' : ''}" onclick="addToCart('${product.id}')">
             ${inCart ? '✓ Update Cart' : '🛒 Add to Cart'}
           </button>
         ` : ''}
@@ -198,7 +346,7 @@ function changeProductQty(productId, delta) {
 // ── Cart Management ─────────────────────────────────────────
 
 function addToCart(productId) {
-  const products = FreshMartStore.getProducts();
+  const products = allProducts;
   const product = products.find(p => p.id === productId);
   if (!product) return;
 
@@ -289,11 +437,59 @@ function updateCartUI() {
     </div>
   `).join('');
 
+  // Calculate Points Discount
+  let discount = 0;
+  let pointsUsed = 0;
+  let subtotal = getCartTotal();
+
+  if (currentUser && currentUser.points >= 100) {
+    document.getElementById('pointsRedeemArea').style.display = 'block';
+    const maxPointsToUse = Math.floor(currentUser.points / 100) * 100;
+    const maxDiscount = (maxPointsToUse / 100) * 20;
+
+    // Prevent discount from exceeding subtotal
+    if (maxDiscount >= subtotal) {
+      pointsUsed = Math.ceil(subtotal / 20) * 100;
+      discount = subtotal;
+    } else {
+      pointsUsed = maxPointsToUse;
+      discount = maxDiscount;
+    }
+
+    document.getElementById('cartAvailablePoints').textContent = currentUser.points;
+    document.getElementById('cartPointsToUse').textContent = pointsUsed;
+    document.getElementById('cartPointsDiscount').textContent = discount;
+
+    const btn = document.getElementById('applyPointsBtn');
+    if (isPointsApplied) {
+      btn.textContent = 'Remove';
+      btn.style.background = 'var(--tomato)';
+    } else {
+      btn.textContent = 'Apply';
+      btn.style.background = 'var(--leaf)';
+      discount = 0;
+      pointsUsed = 0;
+    }
+  } else {
+    document.getElementById('pointsRedeemArea').style.display = 'none';
+    isPointsApplied = false;
+  }
+
   // Update total
-  document.getElementById('cartTotalValue').textContent = FreshMartStore.formatPrice(getCartTotal());
+  const finalTotal = subtotal - discount;
+  const totalHtml = discount > 0 
+    ? `<span style="text-decoration: line-through; color: var(--light); font-size: 0.85rem; margin-right: 8px;">${FreshMartStore.formatPrice(subtotal)}</span> ${FreshMartStore.formatPrice(finalTotal)}`
+    : FreshMartStore.formatPrice(finalTotal);
+    
+  document.getElementById('cartTotalValue').innerHTML = totalHtml;
 
   // Update WhatsApp button state
   validateOrder();
+}
+
+function togglePointsDiscount() {
+  isPointsApplied = !isPointsApplied;
+  updateCartUI();
 }
 
 // ── Cart Toggle ─────────────────────────────────────────────
@@ -314,9 +510,17 @@ function validateOrder() {
   const location = document.getElementById('deliveryLocation').value.trim();
   const payment = document.getElementById('paymentType').value;
   const btn = document.getElementById('placeOrderBtn');
-  const isValid = cart.length > 0 && location.length > 0 && payment.length > 0;
-
-  if (btn) {
+  
+  // Update button text contextually
+  let isValid = false;
+  if (!currentUser) {
+    // If not logged in, button should say "Login to Order"
+    btn.textContent = '🔒 Login to Order';
+    btn.classList.remove('disabled');
+    btn.disabled = false;
+  } else {
+    btn.textContent = '🛍️ Place Order';
+    isValid = cart.length > 0 && location.length > 0 && payment.length > 0;
     btn.classList.toggle('disabled', !isValid);
     btn.disabled = !isValid;
   }
@@ -328,7 +532,13 @@ document.getElementById('paymentType').addEventListener('change', validateOrder)
 
 // ── Place Order ─────────────────────────────────────────────
 
-function placeOrder(event) {
+async function placeOrder(event) {
+  if (!currentUser) {
+    event.preventDefault();
+    openAuthModal();
+    return;
+  }
+
   const location = document.getElementById('deliveryLocation').value.trim();
   const payment = document.getElementById('paymentType').value;
 
@@ -340,8 +550,27 @@ function placeOrder(event) {
     return;
   }
 
+  // Calculate Points Discount
+  let discount = 0;
+  let pointsUsed = 0;
+  let subtotal = getCartTotal();
+
+  if (currentUser && currentUser.points >= 100 && isPointsApplied) {
+    const maxPointsToUse = Math.floor(currentUser.points / 100) * 100;
+    const maxDiscount = (maxPointsToUse / 100) * 20;
+    if (maxDiscount >= subtotal) {
+      pointsUsed = Math.ceil(subtotal / 20) * 100;
+      discount = subtotal;
+    } else {
+      pointsUsed = maxPointsToUse;
+      discount = maxDiscount;
+    }
+  }
+
   // Save order to LocalStorage
   const order = {
+    customerName: currentUser.name,
+    customerPhone: currentUser.phone,
     items: cart.map(item => ({
       name: item.name,
       emoji: item.emoji,
@@ -350,23 +579,100 @@ function placeOrder(event) {
       price: item.price,
       subtotal: item.price * item.qty
     })),
-    total: getCartTotal(),
+    subtotal: subtotal,
+    discount: discount,
+    pointsUsed: pointsUsed,
+    total: subtotal - discount,
     location: location,
     mapsLink: customerLocation.mapsLink || '',
     payment: payment
   };
 
-  FreshMartStore.addOrder(order);
+  if (payment === 'UPI' || payment === 'GPay') {
+    pendingOrder = order;
+    openUpiModal(order.total);
+    return;
+  }
 
-  cart = [];
-  document.getElementById('deliveryLocation').value = '';
-  document.getElementById('paymentType').selectedIndex = 0;
-  customerLocation = { text: '', mapsLink: '' };
+  await submitOrderToStore(order);
+}
+
+// ── UPI Payment Flow ──────────────────────────────────────────
+
+function openUpiModal(amount) {
+  document.getElementById('upiAmountText').textContent = amount;
   
-  updateCartUI();
-  renderProducts();
-  showToast('🎉 Order placed successfully!', 'success');
-  toggleCart();
+  // Generate UPI Intent String
+  const upiId = 'maniofficial.ac.in@okhdfcbank';
+  const payeeName = 'FreshMart';
+  const upiUrl = `upi://pay?pa=${upiId}&pn=${payeeName}&am=${amount}&cu=INR`;
+  
+  document.getElementById('upiPayAppBtn').href = upiUrl;
+
+  // Generate QR Code
+  const qrDiv = document.getElementById('upiQrCode');
+  qrDiv.innerHTML = ''; // clear previous
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(upiUrl);
+    qr.make();
+    qrDiv.innerHTML = qr.createImgTag(5, 10);
+  } catch(e) {
+    console.error("QR Code generation failed", e);
+  }
+
+  document.getElementById('upiModal').classList.add('open');
+}
+
+function closeUpiModal() {
+  document.getElementById('upiModal').classList.remove('open');
+  pendingOrder = null;
+  const btn = document.getElementById('placeOrderBtn');
+  btn.textContent = '🛍️ Place Order';
+  btn.disabled = false;
+}
+
+async function confirmUpiPayment() {
+  if (!pendingOrder) return;
+  document.getElementById('upiModal').classList.remove('open');
+  await submitOrderToStore(pendingOrder);
+  pendingOrder = null;
+}
+
+// ── Submit to Firebase ────────────────────────────────────────
+
+async function submitOrderToStore(order) {
+  const btn = document.getElementById('placeOrderBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Placing Order...';
+  btn.disabled = true;
+
+  try {
+    await FreshMartStore.addOrder(order);
+
+    if (order.pointsUsed > 0) {
+      await FreshMartStore.updateCustomerPoints(currentUser.phone, -order.pointsUsed);
+      currentUser.points -= order.pointsUsed;
+      localStorage.setItem('freshmart_customer_auth', JSON.stringify(currentUser));
+    }
+
+    cart = [];
+    isPointsApplied = false;
+    document.getElementById('deliveryLocation').value = '';
+    document.getElementById('paymentType').selectedIndex = 0;
+    customerLocation = { text: '', mapsLink: '' };
+    
+    updateCartUI();
+    renderProducts();
+    showToast('🎉 Order placed successfully!', 'success');
+    toggleCart();
+  } catch (error) {
+    console.error("Error placing order:", error);
+    showToast('Error placing order. Please try again.', 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 // ── Geolocation — Live Location ─────────────────────────────

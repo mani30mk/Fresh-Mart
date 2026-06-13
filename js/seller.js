@@ -8,13 +8,16 @@ let editingProductId = null;
 let failedAttempts = 0;
 let lockoutUntil = 0;
 
+let allProducts = [];
+let allOrders = [];
+
 // ── Initialize ──────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   setupPinInputs();
 
   // Check if session is active
-  if (sessionStorage.getItem('freshmart_seller_auth') === 'true') {
+  if (localStorage.getItem('freshmart_seller_auth') === 'true') {
     unlockDashboard();
   }
 });
@@ -89,7 +92,7 @@ function handlePinLogin() {
   if (FreshMartStore.verifyPin(pin)) {
     // Success
     isAuthenticated = true;
-    sessionStorage.setItem('freshmart_seller_auth', 'true');
+    localStorage.setItem('freshmart_seller_auth', 'true');
     unlockDashboard();
   } else {
     // Failed
@@ -128,14 +131,23 @@ function unlockDashboard() {
   isAuthenticated = true;
   document.getElementById('pinOverlay').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
-  renderStats();
-  renderProducts();
-  renderOrders();
+  
+  FreshMartStore.listenToProducts((products) => {
+    allProducts = products;
+    renderProducts();
+    renderStats();
+  });
+
+  FreshMartStore.listenToOrders((orders) => {
+    allOrders = orders;
+    renderOrders();
+    renderStats();
+  });
 }
 
 function handleLogout() {
   isAuthenticated = false;
-  sessionStorage.removeItem('freshmart_seller_auth');
+  localStorage.removeItem('freshmart_seller_auth');
   document.getElementById('pinOverlay').style.display = 'grid';
   document.getElementById('dashboard').style.display = 'none';
 
@@ -162,12 +174,12 @@ function switchTab(tab, btn) {
 // ═══════════════════════════════════════════════════════════
 
 function renderStats() {
-  const stats = FreshMartStore.getStats();
-  document.getElementById('statProducts').textContent = stats.totalProducts;
-  document.getElementById('statInStock').textContent = stats.inStockProducts;
-  document.getElementById('statOrders').textContent = stats.totalOrders;
-  document.getElementById('statPending').textContent = stats.pendingOrders;
-  document.getElementById('statRevenue').textContent = FreshMartStore.formatPrice(stats.revenue);
+  const revenue = allOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  document.getElementById('statProducts').textContent = allProducts.length;
+  document.getElementById('statInStock').textContent = allProducts.filter(p => p.inStock).length;
+  document.getElementById('statOrders').textContent = allOrders.length;
+  document.getElementById('statPending').textContent = allOrders.filter(o => o.status === 'pending').length;
+  document.getElementById('statRevenue').textContent = FreshMartStore.formatPrice(revenue);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -175,7 +187,7 @@ function renderStats() {
 // ═══════════════════════════════════════════════════════════
 
 function renderProducts() {
-  const products = FreshMartStore.getProducts();
+  const products = allProducts;
   const body = document.getElementById('productsTableBody');
 
   if (products.length === 0) {
@@ -193,54 +205,47 @@ function renderProducts() {
       <div class="pt-name">${p.name}</div>
       <div class="pt-price">
         <input type="number" class="pt-price-input" value="${p.price}" min="1"
-          onchange="updatePrice(${p.id}, this.value)"
+          onchange="updatePrice('${p.id}', this.value)"
           title="Edit price directly">
       </div>
       <div class="pt-category">${p.unit}</div>
       <div>
-        <button class="pt-stock ${p.inStock ? 'in' : 'out'}" onclick="toggleStock(${p.id})">
+        <button class="pt-stock ${p.inStock ? 'in' : 'out'}" onclick="toggleStock('${p.id}')">
           ${p.inStock ? '● In Stock' : '○ Out'}
         </button>
       </div>
       <div class="pt-actions">
-        <button class="pt-action-btn" onclick="openEditModal(${p.id})" title="Edit product">✏️</button>
-        <button class="pt-action-btn delete" onclick="deleteProduct(${p.id})" title="Delete product">🗑️</button>
+        <button class="pt-action-btn" onclick="openEditModal('${p.id}')" title="Edit product">✏️</button>
+        <button class="pt-action-btn delete" onclick="deleteProduct('${p.id}')" title="Delete product">🗑️</button>
       </div>
     </div>
   `).join('');
 }
 
-function updatePrice(id, newPrice) {
+async function updatePrice(id, newPrice) {
   const price = parseInt(newPrice);
   if (price < 1 || isNaN(price)) {
     showToast('Price must be at least ₹1', 'error');
     renderProducts();
     return;
   }
-  FreshMartStore.updateProduct(id, { price });
-  renderStats();
+  await FreshMartStore.updateProduct(id, { price });
   showToast('Price updated!', 'success');
 }
 
-function toggleStock(id) {
-  const products = FreshMartStore.getProducts();
-  const product = products.find(p => p.id === id);
+async function toggleStock(id) {
+  const product = allProducts.find(p => p.id === id);
   if (product) {
-    FreshMartStore.updateProduct(id, { inStock: !product.inStock });
-    renderProducts();
-    renderStats();
+    await FreshMartStore.updateProduct(id, { inStock: !product.inStock });
     showToast(`${product.emoji} ${product.name} is now ${!product.inStock ? 'in stock' : 'out of stock'}`, 'info');
   }
 }
 
-function deleteProduct(id) {
-  const products = FreshMartStore.getProducts();
-  const product = products.find(p => p.id === id);
+async function deleteProduct(id) {
+  const product = allProducts.find(p => p.id === id);
 
   if (confirm(`Delete "${product.name}"? This cannot be undone.`)) {
-    FreshMartStore.deleteProduct(id);
-    renderProducts();
-    renderStats();
+    await FreshMartStore.deleteProduct(id);
     showToast(`${product.emoji} ${product.name} deleted`, 'error');
   }
 }
@@ -254,7 +259,7 @@ function openProductModal(productId = null) {
   const submitBtn = document.getElementById('modalSubmitBtn');
 
   if (productId) {
-    const product = FreshMartStore.getProducts().find(p => p.id === productId);
+    const product = allProducts.find(p => p.id === productId);
     if (!product) return;
 
     title.textContent = 'Edit Product';
@@ -282,7 +287,7 @@ function closeProductModal() {
   editingProductId = null;
 }
 
-function handleProductSubmit(event) {
+async function handleProductSubmit(event) {
   event.preventDefault();
 
   const emoji = document.getElementById('prodEmoji').value.trim();
@@ -296,19 +301,23 @@ function handleProductSubmit(event) {
     return;
   }
 
-  if (editingProductId) {
-    // Update existing product
-    FreshMartStore.updateProduct(editingProductId, { emoji, name, price, unit, category });
-    showToast(`${emoji} ${name} updated!`, 'success');
-  } else {
-    // Add new product
-    FreshMartStore.addProduct({ emoji, name, price, unit, category });
-    showToast(`${emoji} ${name} added!`, 'success');
-  }
+  const btn = document.getElementById('modalSubmitBtn');
+  btn.disabled = true;
 
-  closeProductModal();
-  renderProducts();
-  renderStats();
+  try {
+    if (editingProductId) {
+      await FreshMartStore.updateProduct(editingProductId, { emoji, name, price, unit, category });
+      showToast(`${emoji} ${name} updated!`, 'success');
+    } else {
+      await FreshMartStore.addProduct({ emoji, name, price, unit, category });
+      showToast(`${emoji} ${name} added!`, 'success');
+    }
+    closeProductModal();
+  } catch (e) {
+    showToast('Error saving product', 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // Close modal on overlay click
@@ -323,7 +332,7 @@ document.getElementById('productModal').addEventListener('click', (e) => {
 // ═══════════════════════════════════════════════════════════
 
 function renderOrders() {
-  const orders = FreshMartStore.getOrders();
+  const orders = allOrders;
   const container = document.getElementById('ordersList');
 
   if (orders.length === 0) {
@@ -350,9 +359,14 @@ function renderOrders() {
           </div>
           <span class="order-status ${order.status}">${order.status}</span>
         </div>
+        ${order.customerName ? `
+        <div style="font-size: 0.85rem; color: var(--s-text); margin-bottom: 8px;">
+          👤 <strong>${order.customerName}</strong> <span style="color:var(--s-text-muted);">(${order.customerPhone})</span>
+        </div>` : ''}
         <div class="order-items">${itemsStr}</div>
         <div class="order-meta">
           <span>💰 ${FreshMartStore.formatPrice(order.total)}</span>
+          ${order.discount ? `<span style="color:var(--wa); font-weight:600;">(Includes ₹${order.discount} points discount)</span>` : ''}
           <span>📍 ${order.location}</span>
           ${order.mapsLink ? `<a href="${order.mapsLink}" target="_blank" class="btn btn--sm btn--outline" style="border-color:var(--s-border); color:var(--lime); padding: 4px 8px; font-size: 0.75rem;">🗺️ View Map</a>` : ''}
           <span>💳 ${order.payment}</span>
@@ -374,20 +388,28 @@ function renderOrders() {
   }).join('');
 }
 
-function updateOrderStatus(id, status) {
-  FreshMartStore.updateOrderStatus(id, status);
-  renderOrders();
-  renderStats();
+async function updateOrderStatus(id, status) {
+  const order = allOrders.find(o => o.id === id);
+  if (!order) return;
 
+  if (status === 'completed' && !order.pointsAwarded && order.customerPhone) {
+    const points = Math.floor(order.total / 100) * 10;
+    if (points > 0) {
+      await FreshMartStore.updateCustomerPoints(order.customerPhone, points);
+      await FreshMartStore.updateOrderStatus(id, status, true);
+      showToast(`✅ Order completed! Added ${points} reward points.`, 'success');
+      return;
+    }
+  }
+
+  await FreshMartStore.updateOrderStatus(id, status);
   const labels = { completed: '✅ Order completed!', cancelled: '❌ Order cancelled' };
   showToast(labels[status] || 'Status updated', status === 'completed' ? 'success' : 'error');
 }
 
-function deleteOrder(id) {
+async function deleteOrder(id) {
   if (confirm('Delete this order record?')) {
-    FreshMartStore.deleteOrder(id);
-    renderOrders();
-    renderStats();
+    await FreshMartStore.deleteOrder(id);
     showToast('Order deleted', 'info');
   }
 }

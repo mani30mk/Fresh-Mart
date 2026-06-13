@@ -15,7 +15,10 @@
   <div class="nav-logo">🥬 Fresh<span>Mart</span></div>
   <div class="nav-actions">
     <span class="nav-badge nav-badge--wa">Online Ordering</span>
-    <a href="seller.html" class="nav-link">Seller Dashboard</a>
+    <div id="authNavArea" style="display: inline-flex; align-items: center; gap: 8px;">
+      <button class="nav-link" onclick="openAuthModal()">Login</button>
+    </div>
+
     <button class="cart-toggle" id="cartToggleBtn" onclick="toggleCart()">
       🛒 Cart
       <span class="cart-count hidden" id="cartCount">0</span>
@@ -26,7 +29,7 @@
 <!-- ═══ HERO SECTION ═══ -->
 <section>
   <div class="hero">
-    <div>
+    <div class="hero-content">
       <div class="hero-eyebrow">📦 Farm to your doorstep</div>
       <h1 class="heading-xl hero-title">Order <em>fresh fruits & vegetables</em> directly online</h1>
       <p class="hero-desc">Browse our fresh produce catalog, add items to your cart, and place your order instantly. No app download. No account needed.</p>
@@ -39,18 +42,6 @@
         </a>
       </div>
     </div>
-    <div class="qr-card">
-      <div class="qr-box" id="qrCodeContainer">
-        <div style="width:180px;height:180px;display:grid;place-items:center;color:var(--light);font-size:0.85rem;">
-          Generating QR...
-        </div>
-      </div>
-      <div class="qr-label">📱 Scan to Visit FreshMart</div>
-      <div class="qr-sub" id="qrUrlDisplay">Share this QR code with your customers</div>
-      <button id="downloadQRBtn" class="btn btn--mango btn--full btn--sm" style="margin-bottom:8px;">
-        📥 Download QR for Advertising
-      </button>
-    </div>
   </div>
 </section>
 
@@ -61,8 +52,8 @@
   <div class="steps-grid">
     <div class="step-card">
       <div class="step-num">1</div>
-      <h3>Scan QR</h3>
-      <p>Scan the QR code at our store or from a flyer to visit FreshMart</p>
+      <h3>Visit FreshMart</h3>
+      <p>Open our website from any device to start shopping</p>
     </div>
     <div class="step-card">
       <div class="step-num">2</div>
@@ -123,6 +114,17 @@
         <option value="GPay">💳 Google Pay</option>
       </select>
     </div>
+
+    <div id="pointsRedeemArea" style="display: none; background: var(--lime-pale); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px dashed var(--leaf);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 0.85rem; color: var(--leaf-dark);">
+          <strong>🌟 <span id="cartAvailablePoints">0</span> Points Available</strong><br>
+          <span style="font-size: 0.75rem;">Use <span id="cartPointsToUse">0</span> pts for ₹<span id="cartPointsDiscount">0</span> off</span>
+        </div>
+        <button id="applyPointsBtn" class="btn btn--sm" style="background: var(--leaf); color: white; padding: 6px 12px; font-size: 0.8rem;" onclick="togglePointsDiscount()">Apply</button>
+      </div>
+    </div>
+
     <div class="cart-total">
       <span class="cart-total-label">Order Total</span>
       <span class="cart-total-value" id="cartTotalValue">₹0</span>
@@ -133,18 +135,95 @@
   </div>
 </div>
 
+<!-- ═══ CUSTOMER AUTH MODAL ═══ -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" style="max-width: 400px; text-align: center;">
+    <h3 id="authModalTitle" style="font-family: 'Syne', sans-serif; font-size: 1.4rem;">Welcome to FreshMart</h3>
+    <p style="color: var(--mid); font-size: 0.9rem; margin-bottom: 24px;" id="authModalDesc">Enter your phone number to continue</p>
+    
+    <div id="authPhoneStep">
+      <input type="text" class="form-input" id="authPhone" placeholder="10-digit mobile number" style="margin-bottom: 16px; text-align: center; font-size: 1.1rem; letter-spacing: 1px;" maxlength="15">
+      <button class="btn btn--primary btn--full" onclick="handleAuthPhone()">Continue</button>
+    </div>
+
+    <div id="authNameStep" style="display: none;">
+      <input type="text" class="form-input" id="authName" placeholder="Enter your full name" style="margin-bottom: 16px; text-align: center;">
+      <button class="btn btn--primary btn--full" onclick="handleAuthName()">Continue</button>
+    </div>
+
+
+    <div id="authLoginPasswordStep" style="display: none;">
+      <input type="password" class="form-input" id="authLoginPassword" placeholder="Enter your password" style="margin-bottom: 16px; text-align: center;">
+      <button class="btn btn--primary btn--full" onclick="handleLoginPassword()" id="loginBtn">Login</button>
+    </div>
+
+    <div id="authSetPasswordStep" style="display: none;">
+      <input type="password" class="form-input" id="authSetPassword" placeholder="Choose a password" style="margin-bottom: 16px; text-align: center;">
+      <button class="btn btn--primary btn--full" onclick="handleSetPassword()" id="createAccountBtn">Create Account</button>
+    </div>
+
+
+    <button class="btn btn--ghost btn--full" onclick="closeAuthModal()" style="margin-top: 8px;">Cancel</button>
+  </div>
+</div>
+
 <!-- ═══ FOOTER ═══ -->
+
+<!-- ═══ PROFILE MODAL ═══ -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal" style="max-width: 500px; width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-family: 'Syne', sans-serif; font-size: 1.4rem;">My Profile</h3>
+      <button onclick="closeProfileModal()" style="font-size: 1.5rem; color: var(--light); background: none; border: none;">✕</button>
+    </div>
+    
+    <div style="background: linear-gradient(135deg, var(--leaf), var(--leaf-light)); color: white; padding: 24px; border-radius: var(--r-md); text-align: center; margin-bottom: 24px;">
+      <div style="font-size: 3rem; margin-bottom: 8px;">🌟</div>
+      <div style="font-size: 2.5rem; font-weight: 800; font-family: 'Syne', sans-serif;" id="profilePointsBalance">0</div>
+      <div style="font-size: 0.9rem; opacity: 0.9;">Total Reward Points</div>
+      <div style="font-size: 0.75rem; margin-top: 8px; opacity: 0.8;">Earn 10 points for every ₹100 spent!</div>
+    </div>
+
+    <h4 style="font-size: 1.1rem; margin-bottom: 12px; font-weight: 700;">Order History</h4>
+    <div id="profileOrdersList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+      <!-- Orders rendered via JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UPI MODAL ═══ -->
+<div class="modal-overlay" id="upiModal">
+  <div class="modal" style="max-width: 400px; text-align: center;">
+    <h3 style="font-family: 'Syne', sans-serif; font-size: 1.4rem; margin-bottom: 8px;">Scan & Pay</h3>
+    <p style="color: var(--mid); font-size: 0.9rem; margin-bottom: 16px;">Pay ₹<span id="upiAmountText">0</span> securely via UPI</p>
+    
+    <div id="upiQrCode" style="margin: 0 auto 24px; display: flex; justify-content: center; padding: 16px; background: white; border-radius: 12px; width: fit-content; border: 2px solid var(--border);"></div>
+
+    <a href="#" id="upiPayAppBtn" class="btn btn--primary btn--full" style="margin-bottom: 12px; display: flex; justify-content: center; align-items: center; gap: 8px;">
+      📱 Pay via UPI App
+    </a>
+    
+    <button class="btn btn--outline btn--full" style="margin-bottom: 12px; border-color: var(--wa); color: var(--wa);" onclick="confirmUpiPayment()">
+      ✅ I have paid
+    </button>
+
+    <button class="btn btn--ghost btn--full" onclick="closeUpiModal()" style="color: var(--tomato);">Cancel Payment</button>
+  </div>
+</div>
+
 <footer class="fm-footer">
   <p>Built with ❤️ for <strong>FreshMart</strong> — Seamless grocery ordering</p>
-  <div class="fm-footer-links">
-    <a href="seller.html">Seller Dashboard</a>
-  </div>
 </footer>
 
 <!-- ═══ TOAST CONTAINER ═══ -->
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="js/store.js"></script>
-<script src="js/customer.js"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <script src="js/store.js" defer></script>
+  <script src="js/customer.js" defer></script>
 </body>
 </html>

@@ -308,18 +308,9 @@ async function handleProductSubmit(event) {
   try {
     let imageUrl = existingImageUrl;
     if (imageInput.files.length > 0) {
-      btn.textContent = 'Compressing...';
+      btn.textContent = 'Processing...';
       const file = imageInput.files[0];
-      const compressedBlob = await compressImage(file, 600, 600, 0.8);
-      
-      btn.textContent = 'Uploading...';
-      const storageRef = firebase.storage().ref();
-      const fileName = `products/${Date.now()}_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
-      const fileRef = storageRef.child(fileName);
-      
-      const metadata = { contentType: 'image/jpeg' };
-      await fileRef.put(compressedBlob, metadata);
-      imageUrl = await fileRef.getDownloadURL();
+      imageUrl = await compressImageToDataURL(file, 400, 400, 0.6);
     }
 
     if (!imageUrl && !editingProductId) {
@@ -461,9 +452,9 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ── Image Compression ───────────────────────────────────────
+// ── Image Compression (returns base64 data URL) ────────────
 
-function compressImage(file, maxWidth = 600, maxHeight = 600, quality = 0.8) {
+function compressImageToDataURL(file, maxWidth = 400, maxHeight = 400, quality = 0.6) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -482,7 +473,7 @@ function compressImage(file, maxWidth = 600, maxHeight = 600, quality = 0.8) {
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(blob => resolve(blob), 'image/jpeg', quality);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = error => reject(error);
     };

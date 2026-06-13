@@ -664,6 +664,41 @@ async function submitOrderToStore(order) {
     
     updateCartUI();
     renderProducts();
+
+    // ── Send Email Notification via Web3Forms ──
+    const itemsText = order.items.map(i => `- ${i.name} (x${i.qty}${i.unit})`).join('\\n');
+    const messageBody = \`
+New Order Received!
+
+Customer: \${order.customerName}
+Phone: \${order.customerPhone}
+
+Items Ordered:
+\${itemsText}
+
+Subtotal: ₹\${order.subtotal}
+Discount: -₹\${order.discount}
+Total: ₹\${order.total}
+
+Payment Method: \${order.payment}
+Delivery Location: \${order.location}
+Map Link: \${order.mapsLink || 'Not provided'}
+\`;
+
+    fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        access_key: "214b49d4-e49c-49c0-aaa2-2f81c0654031",
+        subject: \`New FreshMart Order: \${order.customerName} - ₹\${order.total}\`,
+        from_name: "FreshMart System",
+        message: messageBody
+      })
+    }).catch(err => console.error("Web3Forms error:", err));
+
     showToast('🎉 Order placed successfully!', 'success');
     toggleCart();
   } catch (error) {

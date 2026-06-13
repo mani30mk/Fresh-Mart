@@ -693,6 +693,8 @@ Map Link: ${order.mapsLink || 'Not provided'}
       },
       body: JSON.stringify({
         access_key: "214b49d4-e49c-49c0-aaa2-2f81c0654031",
+        name: order.customerName,
+        email: "noreply@freshmart.local",
         subject: `New FreshMart Order: ${order.customerName} - ₹${order.total}`,
         from_name: "FreshMart System",
         message: messageBody

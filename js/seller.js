@@ -236,17 +236,28 @@ async function updatePrice(id, newPrice) {
 async function toggleStock(id) {
   const product = allProducts.find(p => p.id === id);
   if (product) {
-    await FreshMartStore.updateProduct(id, { inStock: !product.inStock });
-    showToast(`${product.emoji} ${product.name} is now ${!product.inStock ? 'in stock' : 'out of stock'}`, 'info');
+    try {
+      await FreshMartStore.updateProduct(id, { inStock: !product.inStock });
+      showToast(`${product.name} is now ${!product.inStock ? 'in stock' : 'out of stock'}`, 'info');
+    } catch (e) {
+      console.error('Toggle stock error:', e);
+      showToast('Error updating stock status', 'error');
+    }
   }
 }
 
 async function deleteProduct(id) {
   const product = allProducts.find(p => p.id === id);
+  if (!product) return;
 
   if (confirm(`Delete "${product.name}"? This cannot be undone.`)) {
-    await FreshMartStore.deleteProduct(id);
-    showToast(`${product.emoji} ${product.name} deleted`, 'error');
+    try {
+      await FreshMartStore.deleteProduct(id);
+      showToast(`${product.name} deleted`, 'error');
+    } catch (e) {
+      console.error('Delete product error:', e);
+      showToast('Error deleting product: ' + e.message, 'error');
+    }
   }
 }
 

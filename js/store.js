@@ -204,7 +204,7 @@ const FreshMartStore = (() => {
   }
 
   return {
-    listenToProducts, addProduct, updateProduct, getCustomerByPhone,
+    listenToProducts, addProduct, updateProduct, deleteProduct, getCustomerByPhone,
     addCustomer,
     updateCustomerPoints,
     listenToOrders,
